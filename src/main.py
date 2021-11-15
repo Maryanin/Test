@@ -1,8 +1,8 @@
 import datetime as dt
 from fastapi import FastAPI, HTTPException, Query
-from database import engine, Session, Base, City, User, Picnic, PicnicRegistration
-from external_requests import CheckCityExisting, GetWeatherRequest
-from models import RegisterUserRequest, UserModel
+from src.database import engine, Session, Base, City, User, Picnic, PicnicRegistration
+from src.external_requests import CheckCityExisting, GetWeatherRequest
+from src.models import RegisterUserRequest, UserModel
 
 app = FastAPI()
 
@@ -26,27 +26,35 @@ def create_city(city: str = Query(description="Название города", d
 
 
 @app.post('/get-cities/', summary='Get Cities')
-def cities_list(q: str = Query(description="Название города", default=None)):
+def cities_list(q: str = Query(description="Название города(оставьте поле пустым, чтоб получить полный список городов)", default=None)):
     """
     Получение списка городов
     """
     cities = Session().query(City).all()
-
-    return [{'id': city.id, 'name': city.name, 'weather': city.weather} for city in cities]
-
+    i = 0
+    if q == None:
+        return [{'id': city.id, 'name': city.name, 'weather': city.weather} for city in cities]
+    else:
+        while i < 40 and q != cities[i].name:
+            i = i + 1
+            continue
+        return [{'id': cities[i].id, 'name': cities[i].name, 'weather': cities[i].weather}]
 
 @app.post('/users-list/', summary='')
-def users_list():
+def users_list(
+        q: str = Query(description="Для сортировки по возрастанию введите +, для сортировки по убыванию введите -",
+                       default=None)):
     """
     Список пользователей
     """
     users = Session().query(User).all()
-    return [{
-        'id': user.id,
-        'name': user.name,
-        'surname': user.surname,
-        'age': user.age,
-    } for user in users]
+    if q == '+':
+        return [sorted(users, key=lambda o: o.age)]
+    else:
+        if q == '-':
+            return [sorted(users, key=lambda o: o.age, reverse=True)]
+        else:
+            return [dict(id=user.id, name=user.name, surname=user.surname, age=user.age) for user in users]
 
 
 @app.post('/register-user/', summary='CreateUser', response_model=UserModel)
@@ -73,7 +81,6 @@ def all_picnics(datetime: dt.datetime = Query(default=None, description='Вре�
         picnics = picnics.filter(Picnic.time == datetime)
     if not past:
         picnics = picnics.filter(Picnic.time >= dt.datetime.now())
-
     return [{
         'id': pic.id,
         'city': Session().query(City).filter(City.id == pic.id).first().name,
@@ -98,7 +105,7 @@ def picnic_add(city_id: int = None, datetime: dt.datetime = None):
 
     return {
         'id': p.id,
-        'city': Session().query(City).filter(City.id == p.id).first().name,
+        'city': Session().query(City).filter(p.city_id == City.id).first().name,
         'time': p.time,
     }
 
