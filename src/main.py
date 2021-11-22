@@ -7,7 +7,7 @@ from src.models import RegisterUserRequest, UserModel
 app = FastAPI()
 
 
-@app.get('/create-city/', summary='Create City', description='Создание города по его названию')
+@app.get('/create-city/', summary='Create City', description='Создание города по его названию', tags=['City'])
 def create_city(city: str = Query(description="Название города", default=None)):
     if city is None:
         raise HTTPException(status_code=400, detail='Параметр city должен быть указан')
@@ -25,14 +25,14 @@ def create_city(city: str = Query(description="Название города", d
     return {'id': city_object.id, 'name': city_object.name, 'weather': city_object.weather}
 
 
-@app.post('/get-cities/', summary='Get Cities')
+@app.post('/get-cities/', summary='Get Cities', tags=['City'])
 def cities_list(q: str = Query(description="Название города(оставьте поле пустым, чтоб получить полный список городов)", default=None)):
     """
     Получение списка городов
     """
     cities = Session().query(City).all()
     i = 0
-    if q == None:
+    if q is None:
         return [{'id': city.id, 'name': city.name, 'weather': city.weather} for city in cities]
     else:
         while i < 40 and q != cities[i].name:
@@ -40,7 +40,8 @@ def cities_list(q: str = Query(description="Название города(ост
             continue
         return [{'id': cities[i].id, 'name': cities[i].name, 'weather': cities[i].weather}]
 
-@app.post('/users-list/', summary='')
+
+@app.post('/users-list/', summary='', tags=['User'])
 def users_list(
         q: str = Query(description="Для сортировки по возрастанию введите +, для сортировки по убыванию введите -",
                        default=None)):
@@ -57,7 +58,7 @@ def users_list(
             return [dict(id=user.id, name=user.name, surname=user.surname, age=user.age) for user in users]
 
 
-@app.post('/register-user/', summary='CreateUser', response_model=UserModel)
+@app.post('/register-user/', summary='Create User', response_model=UserModel, tags=['User'])
 def register_user(user: RegisterUserRequest):
     """
     Регистрация пользователя
@@ -81,9 +82,10 @@ def all_picnics(datetime: dt.datetime = Query(default=None, description='Вре�
         picnics = picnics.filter(Picnic.time == datetime)
     if not past:
         picnics = picnics.filter(Picnic.time >= dt.datetime.now())
+
     return [{
         'id': pic.id,
-        'city': Session().query(City).filter(City.id == pic.id).first().name,
+        'city': Session().query(City).filter(pic.city_id == City.id).first().name,
         'time': pic.time,
         'users': [
             {
@@ -96,8 +98,8 @@ def all_picnics(datetime: dt.datetime = Query(default=None, description='Вре�
     } for pic in picnics]
 
 
-@app.get('/picnic-add/', summary='Picnic Add', tags=['picnic'])
-def picnic_add(city_id: int = None, datetime: dt.datetime = None):
+@app.get('/picnic-add/', summary='Picnic Add', tags=['picnic'], description='Создание пикника')
+def picnic_add(city_id: int = Query(default=None, description='Введите id города'), datetime: dt.datetime = Query(default='ГГГГ-ММ-ДДTЧЧ:ММ:СС', description='Введите время')):
     p = Picnic(city_id=city_id, time=datetime)
     s = Session()
     s.add(p)
@@ -110,12 +112,18 @@ def picnic_add(city_id: int = None, datetime: dt.datetime = None):
     }
 
 
-@app.get('/picnic-register/', summary='Picnic Registration', tags=['picnic'])
-def register_to_picnic(*_, **__,):
+@app.get('/picnic-register/', summary='Picnic Registration', tags=['picnic'], description='Регистрация на пикник')
+def register_to_picnic(user_id: int = Query(default=None, description="Введите id пользователя"), picnic_id: int = Query(default=None, description="Введите id пикника"), ):
     """
     Регистрация пользователя на пикник
-    (Этот эндпойнт необходимо реализовать в процессе выполнения тестового задания)
     """
-    # TODO: Сделать логику
-    return ...
+    pr = PicnicRegistration(user_id=user_id, picnic_id=picnic_id)
+    s = Session()
+    s.add(pr)
+    s.commit()
 
+    return [{
+        'id': pr.id,
+        'User': pr.user,
+        'Picnic': pr.picnic
+    }]
